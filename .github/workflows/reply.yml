@@ -1,0 +1,97 @@
+name: Threads コメントに返信
+
+on:
+  workflow_dispatch:
+    inputs:
+      comment_id:
+        description: "返信先のコメントID（data/my_account/replies.md の「コメントID」）"
+        required: true
+      reply_text:
+        description: "返信の文（500文字まで。replies.md の返信案を直して使ってよい）"
+        required: true
+      config:
+        description: "設定の名前（configs/ のファイル名。ふつうは my_account のまま）"
+        required: true
+        default: "my_account"
+
+permissions:
+  contents: write
+
+jobs:
+  reply:
+    if: github.repository != 'ronginooth/threads-autopost'  # ひな形そのものでは動かさない（作ったリポジトリでは動く）
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      # replies.yml と同じ確かめ。返信の記録（他人のコメントを含む）を公開しないため、非公開のリポジトリでだけ動く
+      - name: 非公開のリポジトリかを確かめる
+        id: guard
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EVENT_PRIVATE: ${{ github.event.repository.private }}
+          CONFIG_NAME: ${{ inputs.config }}
+        run: |
+          private="$EVENT_PRIVATE"
+          if [ -z "$private" ]; then
+            private=$(gh api "repos/$GITHUB_REPOSITORY" --jq .private 2>/dev/null || true)
+          fi
+          if [ "$private" = "false" ]; then
+            echo "コメントを扱う機能は、非公開のリポジトリでだけ動きます。"
+            echo "このリポジトリは公開なので、返信せずに終わります（他人のコメントと返信の記録を公開しないため）。"
+            echo "使うときは Settings → General のいちばん下の「Change visibility」で Private にしてください。"
+            echo "go=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          if [ "$private" != "true" ]; then
+            echo "::error::リポジトリが非公開かどうかを確かめられなかったので、返信せずに止めます"
+            exit 1
+          fi
+          if ! printf '%s' "$CONFIG_NAME" | grep -Eq '^[A-Za-z0-9_-]+$'; then
+            echo "::error::設定の名前は英数字と _ - だけ（configs/ のファイル名から .yml を除いたもの）"
+            exit 1
+          fi
+          echo "go=true" >> "$GITHUB_OUTPUT"
+
+      - name: コードを取得
+        if: steps.guard.outputs.go == 'true'
+        uses: actions/checkout@v4
+        with:
+          ref: main  # 最新の comments.json を読む
+
+      - name: Python セットアップ
+        if: steps.guard.outputs.go == 'true'
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: 部品を入れる
+        if: steps.guard.outputs.go == 'true'
+        run: pip install -r requirements.txt
+
+      # 入力はコマンドに埋め込まず、環境変数で渡す（本文に " や $ があっても壊れない）。
+      # --text= の形にするのは、本文が - で始まっても引数の名前と取り違えないため
+      - name: 返信する
+        if: steps.guard.outputs.go == 'true'
+        env:
+          THREADS_ACCESS_TOKEN: ${{ secrets.THREADS_ACCESS_TOKEN }}
+          THREADS_USER_ID: ${{ secrets.THREADS_USER_ID }}
+          CONFIG_NAME: ${{ inputs.config }}
+          COMMENT_ID: ${{ inputs.comment_id }}
+          REPLY_TEXT: ${{ inputs.reply_text }}
+        run: |
+          python scripts/reply.py \
+            --config="configs/${CONFIG_NAME}.yml" \
+            --comment-id="${COMMENT_ID}" \
+            --text="${REPLY_TEXT}"
+
+      - name: 記録を残す（comments.json・replies.md）
+        if: steps.guard.outputs.go == 'true'
+        env:
+          CONFIG_NAME: ${{ inputs.config }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add -A "data/${CONFIG_NAME}/"
+          git diff --staged --quiet || git commit -m "reply: ${CONFIG_NAME} $(date +'%Y-%m-%d %H:%M UTC')"
+          for i in 1 2 3; do git pull --rebase -X theirs origin main && git push && exit 0; sleep $((i*5)); done
+          echo "push に3回失敗（返信は出ている。返信済みの印は次の replies.yml で付く）"; exit 1

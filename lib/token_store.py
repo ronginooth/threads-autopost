@@ -76,6 +76,14 @@ def set_github_secret(repo: str, name: str, value: str):
                    input=value, text=True, capture_output=True, check=True)
 
 
+def repo_is_private(repo: str) -> bool | None:
+    """リポジトリが非公開なら True、公開なら False、確かめられなければ None（コメントの機能は非公開でだけ動く）"""
+    res = subprocess.run(["gh", "api", f"repos/{repo}", "--jq", ".private"], capture_output=True, text=True)
+    if res.returncode != 0:
+        return None
+    return {"true": True, "false": False}.get(res.stdout.strip())
+
+
 def fmt_ts(epoch: int) -> str:
     return datetime.fromtimestamp(epoch, JST).strftime("%Y-%m-%d %H:%M")
 

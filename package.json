@@ -1,0 +1,9 @@
+{
+  "name": "threads-autopost",
+  "private": true,
+  "description": "Jev を Vercel AI Gateway 経由で呼ぶ部品（scripts/jev_gateway.mjs）だけを置く。TypeSafe の鍵があれば使わない",
+  "type": "module",
+  "dependencies": {
+    "ai": "^7.0.106"
+  }
+}

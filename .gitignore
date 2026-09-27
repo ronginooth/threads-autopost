@@ -5,3 +5,5 @@
 __pycache__/
 *.pyc
 logs/
+# Jev を Vercel AI Gateway 経由で呼ぶ部品（npm ci で package-lock.json から入れる）
+node_modules/

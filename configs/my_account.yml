@@ -26,3 +26,14 @@ recycle:
   days_ahead: 3      # 何日先までキューを埋めておくか
   stale_minutes: 360 # 予定を過ぎた再投稿を捨てるまでの分数
   exclude_text: ''   # 再投稿に使わない投稿の目印（正規表現。例: 'キャンペーン|\d+月\d+日'）
+
+# コメントの分類と返信案（scripts/fetch_replies.py。README の「コメントの分類と返信案（Jev）」）
+# 動くのは、非公開のリポジトリで、Jev の鍵（Secret の TYPESAFE_API_KEY か AI_GATEWAY_API_KEY）を入れたときだけ
+# 動く時刻は .github/workflows/replies.yml の cron（日本時間 7時〜23時の2時間おき）。結果は data/my_account/replies.md
+replies:
+  recent_posts: 25          # コメントを見に行く、自分の最近の投稿の数
+  max_comments_per_run: 20  # 1回に取り込むコメントの上限（新しい順。超えた分は次の回へ）
+  fresh_days: 30            # これより古いコメントは取り込まない。返信待ちのまま古くなったものは replies.md から外す
+  draft_replies: true       # 返信案を作るか（Secret の CLAUDE_CODE_OAUTH_TOKEN が無ければ作らない）
+  model: opus               # 返信案を書く Claude のモデル（opus / sonnet）。サブスクの枠を節約したいときは sonnet
+  persona: ""               # 返信案に使う自分の紹介（例: "平日の夕食づくりを発信している会社員"）。空なら使わない

@@ -112,6 +112,41 @@ def get_my_posts(token: str, user_id: str, limit: int = 25) -> list:
     return res.json().get("data", [])
 
 
+# ========================================
+# コメントと返信（fetch_replies.py / reply.py）
+# ========================================
+
+REPLY_FIELDS = "id,text,timestamp,username,permalink,has_replies"
+
+
+def get_replies(media_id: str, token: str, fields: str = REPLY_FIELDS) -> list:
+    """投稿（またはコメント）に直接付いた返信の一覧（1ページ目）。
+    username と permalink は、公開のアカウントと自分のものだけ返ってくる（非公開の人は空）"""
+    res = requests.get(
+        f"{BASE_URL}/{media_id}/replies",
+        params={"fields": fields, "access_token": token},
+        timeout=30,
+    )
+    _raise_for_threads_error(res)
+    return res.json().get("data", [])
+
+
+def create_reply(text: str, reply_to_id: str, token: str, user_id: str) -> str:
+    """返信のコンテナを作って creation_id を返す（出すのは publish_post）"""
+    res = requests.post(
+        f"{BASE_URL}/{user_id}/threads",
+        params={
+            "media_type": "TEXT",
+            "text": text,
+            "reply_to_id": reply_to_id,
+            "access_token": token,
+        },
+        timeout=30,
+    )
+    _raise_for_threads_error(res)
+    return res.json()["id"]
+
+
 
 
 def get_user_insights(token: str, user_id: str) -> dict:

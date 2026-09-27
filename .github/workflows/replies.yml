@@ -1,0 +1,124 @@
+name: Threads コメントの分類と返信案
+
+on:
+  schedule:
+    # 2時間ごと（日本時間 7:00〜23:00 = 22:00〜14:00 UTC）。GitHub の定期実行は遅れることがある
+    - cron: "0 22,0,2,4,6,8,10,12,14 * * *"
+  workflow_dispatch:  # 手動の実行ボタン（鍵を入れた直後の1回目など）
+
+permissions:
+  contents: write
+
+jobs:
+  replies:
+    if: github.repository != 'ronginooth/threads-autopost'  # ひな形そのものでは動かさない（作ったリポジトリでは動く）
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      matrix:
+        config: [my_account]  # post.yml と同じ名前にする
+    concurrency:
+      group: threads-replies-${{ matrix.config }}
+    steps:
+      # 他人のコメント（名前・本文）と、それに付けた分類・返信案を公開しないため、非公開のリポジトリでだけ動く。
+      # 公開なら、何も取らずに終わる。鍵が足りなければ、足りない名前を出して終わる（どちらも失敗にはしない）
+      - name: 非公開のリポジトリか・鍵があるかを確かめる
+        id: guard
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EVENT_PRIVATE: ${{ github.event.repository.private }}
+          HAS_THREADS_TOKEN: ${{ secrets.THREADS_ACCESS_TOKEN != '' }}
+          HAS_THREADS_USER_ID: ${{ secrets.THREADS_USER_ID != '' }}
+          HAS_TYPESAFE: ${{ secrets.TYPESAFE_API_KEY != '' }}
+          HAS_GATEWAY: ${{ secrets.AI_GATEWAY_API_KEY != '' }}
+          HAS_CLAUDE: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN != '' }}
+        run: |
+          private="$EVENT_PRIVATE"
+          if [ -z "$private" ]; then
+            # 実行のきっかけによってはリポジトリの情報が届かない。そのときは GitHub に聞く
+            private=$(gh api "repos/$GITHUB_REPOSITORY" --jq .private 2>/dev/null || true)
+          fi
+          if [ "$private" = "false" ]; then
+            echo "コメントを扱う機能は、非公開のリポジトリでだけ動きます。"
+            echo "このリポジトリは公開なので、コメントを取らずに終わります（他人のコメントと、それに付けた分類・返信案を公開しないため）。"
+            echo "使うときは Settings → General のいちばん下の「Change visibility」で Private にしてください。"
+            echo "go=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          if [ "$private" != "true" ]; then
+            echo "::error::リポジトリが非公開かどうかを確かめられなかったので、コメントを取らずに止めます"
+            exit 1
+          fi
+          echo "非公開のリポジトリ: OK"
+
+          missing=""
+          [ "$HAS_THREADS_TOKEN" = "true" ] || missing="$missing THREADS_ACCESS_TOKEN"
+          [ "$HAS_THREADS_USER_ID" = "true" ] || missing="$missing THREADS_USER_ID"
+          if [ "$HAS_TYPESAFE" != "true" ] && [ "$HAS_GATEWAY" != "true" ]; then
+            missing="$missing TYPESAFE_API_KEY（か AI_GATEWAY_API_KEY）"
+          fi
+          if [ -n "$missing" ]; then
+            echo "コメントの機能は切ってあります。足りない Secrets:$missing"
+            echo "使うときは README の「コメントの分類と返信案（Jev）」の手順で鍵を入れてください（投稿はこの機能と関係なく動きます）。"
+            echo "go=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          if [ "$HAS_TYPESAFE" = "true" ]; then jev=typesafe; echo "Jev: TypeSafe に直接"; else jev=gateway; echo "Jev: Vercel AI Gateway 経由"; fi
+          if [ "$HAS_CLAUDE" = "true" ]; then
+            claude=true; echo "返信案: Claude Code（CLAUDE_CODE_OAUTH_TOKEN・サブスクの枠）で作る"
+          else
+            claude=false; echo "返信案: CLAUDE_CODE_OAUTH_TOKEN が無いので作らない（取得と分類だけ）"
+          fi
+          { echo "go=true"; echo "jev=$jev"; echo "claude=$claude"; } >> "$GITHUB_OUTPUT"
+
+      - name: コードを取得
+        if: steps.guard.outputs.go == 'true'
+        uses: actions/checkout@v4
+
+      - name: Python セットアップ
+        if: steps.guard.outputs.go == 'true'
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: 部品を入れる
+        if: steps.guard.outputs.go == 'true'
+        run: pip install -r requirements.txt
+
+      - name: Node セットアップ（Gateway 経由の Jev と Claude Code に使う）
+        if: steps.guard.outputs.go == 'true' && (steps.guard.outputs.jev == 'gateway' || steps.guard.outputs.claude == 'true')
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      # TypeSafe の鍵が無いときだけ使う（scripts/jev_gateway.mjs）
+      - name: Jev（Vercel AI Gateway 経由）の部品を入れる
+        if: steps.guard.outputs.go == 'true' && steps.guard.outputs.jev == 'gateway'
+        run: npm ci --no-audit --no-fund
+
+      # 返信案づくりは Claude Code（自分のサブスクの枠）で動く。API キーは使わない
+      - name: Claude Code を入れる
+        if: steps.guard.outputs.go == 'true' && steps.guard.outputs.claude == 'true'
+        run: npm install -g @anthropic-ai/claude-code
+
+      - name: コメントを取って分け、返信案を作る
+        if: steps.guard.outputs.go == 'true'
+        env:
+          THREADS_ACCESS_TOKEN: ${{ secrets.THREADS_ACCESS_TOKEN }}
+          THREADS_USER_ID: ${{ secrets.THREADS_USER_ID }}
+          TYPESAFE_API_KEY: ${{ secrets.TYPESAFE_API_KEY }}
+          AI_GATEWAY_API_KEY: ${{ secrets.AI_GATEWAY_API_KEY }}
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          DISABLE_AUTOUPDATER: "1"
+        run: python scripts/fetch_replies.py --config configs/${{ matrix.config }}.yml
+
+      # 分類が止まって前の段が失敗しても、取ったコメントは残す（理由は replies.md のいちばん上）
+      - name: 記録を残す（comments.json・seen_comments.json・status.json・replies.md）
+        if: ${{ !cancelled() && steps.guard.outputs.go == 'true' }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add -A data/${{ matrix.config }}/
+          git diff --staged --quiet || git commit -m "replies: ${{ matrix.config }} $(date +'%Y-%m-%d %H:%M UTC')"
+          for i in 1 2 3; do git pull --rebase -X theirs origin main && git push && exit 0; sleep $((i*5)); done
+          echo "push に3回失敗（次の実行で取り直す）"; exit 1
