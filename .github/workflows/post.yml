@@ -1,0 +1,53 @@
+name: Threads 自動投稿
+
+on:
+  schedule:
+    # 予備の定期実行（3時間ごと）。GitHub の定期実行は遅れたり間引かれたりするので、
+    # 時刻どおりの投稿は「起こす係」（Mac の launchd か VPS の cron）が workflow_dispatch で起こす。
+    # post.py が予約の時刻（scheduled:）を見て、時刻前の投稿は出さない
+    - cron: "10 */3 * * *"
+  workflow_dispatch:  # 起こす係と、手動の実行ボタン
+
+permissions:
+  contents: write
+
+jobs:
+  post:
+    if: github.repository != 'ronginooth/threads-autopost'  # ひな形そのものでは動かさない（作ったリポジトリでは動く）
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        config: [my_account]  # configs/ の設定ファイルの名前。アカウントを足すときはここに追記
+    concurrency:
+      group: threads-post-${{ matrix.config }}
+    steps:
+      - name: コードを取得
+        uses: actions/checkout@v4
+        with:
+          ref: main  # 待たされた実行でも、前の実行が push した最新の main から始める（二重投稿を防ぐ）
+
+      - name: Python セットアップ
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: 部品を入れる
+        run: pip install -r requirements.txt
+
+      - name: 再投稿の補充（recycle.enabled が true のときだけ）
+        run: python scripts/recycle.py --config configs/${{ matrix.config }}.yml
+
+      - name: 投稿する
+        env:
+          THREADS_ACCESS_TOKEN: ${{ secrets.THREADS_ACCESS_TOKEN }}
+          THREADS_USER_ID: ${{ secrets.THREADS_USER_ID }}
+        run: python scripts/post.py --config configs/${{ matrix.config }}.yml
+
+      - name: 出した投稿を posted/ へ移した記録を残す
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add -A data/${{ matrix.config }}/
+          git commit -m "post: ${{ matrix.config }} $(date +'%Y-%m-%d %H:%M UTC')" || echo "変更なし"
+          for i in 1 2 3; do git pull --rebase -X theirs origin main && git push && exit 0; sleep $((i*5)); done
+          echo "push に3回失敗（次の実行で取り直す）"; exit 1

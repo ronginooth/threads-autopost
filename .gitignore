@@ -1,0 +1,7 @@
+# 鍵（set_token.py が書く）
+.env
+# 手元の部品とログ
+.venv/
+__pycache__/
+*.pyc
+logs/

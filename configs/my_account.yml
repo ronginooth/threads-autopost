@@ -1,0 +1,28 @@
+# Threads の自動投稿の設定
+# このファイルの名前（my_account）が、data/my_account/ と .github/workflows/*.yml の config: とつながる
+
+# 自分の Threads のユーザー名（@ から）。set_token.py が、鍵の持ち主と合っているかを確かめる
+account: "@your_threads_id"
+
+# 投稿の時刻（日本時間）。起こす係は、この各時刻の1分後に投稿の処理を起こす
+times:
+  - "07:00"
+  - "12:00"
+  - "21:00"
+
+# 1日に出す上限（書かなければ times の数）
+# max_daily_posts: 3
+
+# 投稿と投稿の最低の間隔（分）
+min_interval_minutes: 60
+
+# 伸びた投稿の再投稿（scripts/recycle.py）。キューが空いている時刻に、過去に表示の多かった投稿を入れる
+# 数字（stats.yml が毎晩集める）が2週間ほどたまってから true にする
+recycle:
+  enabled: false
+  top_n: 30          # 表示の多い上位何系統を回すか
+  min_gap_days: 7    # 同じ投稿をもう一度出すまで、最低何日あけるか
+  explore_rate: 0.2  # 上位以外を混ぜる割合（0.2 = 5回に1回）
+  days_ahead: 3      # 何日先までキューを埋めておくか
+  stale_minutes: 360 # 予定を過ぎた再投稿を捨てるまでの分数
+  exclude_text: ''   # 再投稿に使わない投稿の目印（正規表現。例: 'キャンペーン|\d+月\d+日'）
