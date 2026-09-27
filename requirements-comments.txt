@@ -1,0 +1,3 @@
+# コメントの分類と返信案（Jev）に使う部品。投稿の部品（requirements.txt）に足して入れる
+-r requirements.txt
+typesafe-sdk==0.7.1

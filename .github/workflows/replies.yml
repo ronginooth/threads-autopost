@@ -11,7 +11,9 @@ permissions:
 
 jobs:
   replies:
-    if: github.repository != 'ronginooth/threads-autopost'  # ひな形そのものでは動かさない（作ったリポジトリでは動く）
+    # ひな形そのものでは動かさない。作ったリポジトリでも、変数 COMMENTS_ENABLED が true のときだけ動く
+    # （切ってあるあいだは2時間おきの起動がスキップになり、Actions の分数を使わない。scripts/set_jev_key.py が true にする）
+    if: github.repository != 'ronginooth/threads-autopost' && vars.COMMENTS_ENABLED == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 30
     strategy:
@@ -83,7 +85,7 @@ jobs:
 
       - name: 部品を入れる
         if: steps.guard.outputs.go == 'true'
-        run: pip install -r requirements.txt
+        run: pip install -r requirements-comments.txt
 
       - name: Node セットアップ（Gateway 経由の Jev と Claude Code に使う）
         if: steps.guard.outputs.go == 'true' && (steps.guard.outputs.jev == 'gateway' || steps.guard.outputs.claude == 'true')

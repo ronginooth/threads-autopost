@@ -8,7 +8,7 @@
 1. 鍵を貼り付けてもらう（画面には出ない）。--from <ファイル> なら、そのファイル（.env の形）から読む。
    あわせて、手元の Threads の鍵にコメントを読む・返信する権限（threads_read_replies・threads_manage_replies）があるかを見る
 2. その鍵で、見本のコメント1件を実際に分けてみる（通らなければ登録しない）
-3. 手元の .env（--from のときは書かない）と GitHub の Secrets に入れる
+3. 手元の .env（--from のときは書かない）と GitHub の Secrets に入れ、スイッチの変数 COMMENTS_ENABLED を true にする
 4. replies.yml を1回走らせる（非公開のリポジトリなら、コメントの取得と分類が始まる）
 
 Jev の料金は入力100万トークンあたり0.042ドル（出力は無料）。コメント1件の分類は約1,500トークン。
@@ -61,7 +61,7 @@ def try_key(name: str, key: str) -> dict:
     try:
         from lib.jev import classify_comments
     except ImportError:
-        raise RuntimeError("部品が入っていない。先に pip install -r requirements.txt を実行する")
+        raise RuntimeError("部品が入っていない。先に pip install -r requirements-comments.txt を実行する")
     out = classify_comments([SAMPLE])["test"]
     if "error" in out:
         raise RuntimeError(f"この鍵では分類できない: {out['error']}")
@@ -111,6 +111,9 @@ def run(name: str, key: str, source: str | None):
         print(f".env: {token_store.ENV_FILE} に {name} を書いた")
     token_store.set_github_secret(repo, name, key)
     print(f"GitHub Secrets: {repo} の {name} を登録した")
+    subprocess.run(["gh", "variable", "set", "COMMENTS_ENABLED", "--body", "true", "-R", repo],
+                   capture_output=True, text=True, check=True)
+    print(f"GitHub の変数: {repo} の COMMENTS_ENABLED を true にした（コメントの機能のスイッチ。止めるときは false）")
     subprocess.run(["gh", "workflow", "run", "replies.yml", "-R", repo], capture_output=True, text=True, check=True)
     print("コメントの取得: GitHub で1回走らせた（数分で data/<アカウント>/replies.md ができる。"
           "Actions の「Threads コメントの分類と返信案」で様子が見える）")

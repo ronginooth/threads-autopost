@@ -86,7 +86,7 @@ def run(source: str | None, config: str):
     print(f"GitHub Secrets: {repo} の {SECRET_NAME} を登録した")
     subprocess.run(["gh", "workflow", "run", "replies.yml", "-R", repo], capture_output=True, text=True, check=True)
     print("返信案づくり: GitHub で1回走らせた（数分後に Actions の「Threads コメントの分類と返信案」で様子が見える。"
-          "Jev の鍵がまだなら、鍵が足りないと出て終わる）")
+          "Jev の鍵をまだ入れていなければ、スイッチが切れていてスキップになる。先に scripts/set_jev_key.py）")
 
 
 if __name__ == "__main__":

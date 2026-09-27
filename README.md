@@ -142,7 +142,7 @@ GitHub に送れば、その時刻に出ます。ファイル名の先頭を日�
 
 自分の投稿に付いたコメントを、日本時間 7時〜23時の2時間おきに集めて、1件ずつ種類と感情に分け、返信の案を付けます。
 結果は `data/my_account/replies.md` に新しい順で並びます。返信は自分で案を選び、Actions の入力欄から出します（勝手には返信しません）。
-最初は切ってあります（鍵を入れると動きます）。投稿はこの機能と関係なく動きます。
+最初は切ってあります。Jev の鍵を入れると、スイッチ（リポジトリの変数 `COMMENTS_ENABLED`）が `true` になって動きます。切ってあるあいだは2時間おきの起動がスキップになり、Actions の分数を使いません。投稿はこの機能と関係なく動きます。
 
 - **種類**（8つ）: 共感・応援／質問／体験の共有／補足・情報／反論・指摘／強い言い方／宣伝・無関係／その他
 - **感情**（7つ）: 喜び・楽しさ／感謝・尊敬／共感・安心／不安・悩み／驚き・関心／不満・苛立ち／落ち着き
@@ -177,10 +177,10 @@ GitHub に送れば、その時刻に出ます。ファイル名の先頭を日�
 Threads の鍵には、コメントを読む権限 `threads_read_replies` と、返信する権限 `threads_manage_replies` が要ります。
 手順2のときに入れていなければ、Meta のアプリの権限に足してトークンを作り直し、手順5をもう一度行います。
 
-ここからは、手順3で持ってきたリポジトリで実行します（`gh auth login` 済みの Mac か VPS）。先に部品を入れ直します（Jev の部品が増えています）。
+ここからは、手順3で持ってきたリポジトリで実行します（`gh auth login` 済みの Mac か VPS）。先に、コメントの機能の部品を足します（投稿の部品はそのまま）。
 
 ```bash
-.venv/bin/pip install -r requirements.txt
+.venv/bin/pip install -r requirements-comments.txt
 ```
 
 どのスクリプトも、鍵を1回試して、通ったものだけを GitHub の Secrets に入れ、コメントの取得を1回走らせます。鍵は画面に出ません。
@@ -203,7 +203,7 @@ Threads の鍵には、コメントを読む権限 `threads_read_replies` と、
 .venv/bin/python scripts/set_claude_token.py
 ```
 
-GitHub の画面から入れるときは、Settings → Secrets and variables → Actions → New repository secret に、上の表の名前で入れます（その場合、試しの確認はありません）。
+GitHub の画面から入れるときは、Settings → Secrets and variables → Actions → New repository secret に、上の表の名前で入れます（その場合、試しの確認はありません）。あわせて同じ画面の **Variables** タブで、`COMMENTS_ENABLED` という変数を `true` で作ります（これがスイッチです）。
 
 ### replies.md の読み方
 
@@ -227,16 +227,15 @@ GitHub で `data/my_account/replies.md` を開くと、整った形で読めま�
 
 ### 止める
 
-- **全部止める**: Actions タブ →「Threads コメントの分類と返信案」→ 右上の「…」→ **Disable workflow**（再開は同じ場所の Enable workflow）
+- **全部止める**: Settings → Secrets and variables → Actions → **Variables** の `COMMENTS_ENABLED` を `false` にする（再開は `true`）。止めているあいだは Actions の分数を使いません
 - **返信案だけ止める**: `replies.draft_replies` を `false` にして送る
-- この機能を使わないときも、Disable workflow にしておきます。鍵が無くても2時間おきの確かめは動き、非公開のリポジトリでは1回1分（1日9回・月270分ほど）と数えられるためです
 
 ## うまく動かないとき
 
 - **投稿されない** — GitHub の Actions タブで「Threads 自動投稿」の記録を開く。止めるスイッチ・時刻前・1日の上限・最低の間隔のどれかが出ています
 - **鍵が切れた**（60日を過ぎた）— 手順5をもう一度
 - **起こす係が動いたか** — `logs/post_trigger.log`（Mac・VPS とも）
-- **コメントが replies.md に出てこない** — Actions の「Threads コメントの分類と返信案」の記録を開く。最初の段に、公開のリポジトリか、足りない鍵の名前が出ています。分類や返信案が止まったときの理由は replies.md のいちばん上に出ます
+- **コメントが replies.md に出てこない** — Actions の「Threads コメントの分類と返信案」の記録を開く。最初の段に、公開のリポジトリか、足りない鍵の名前が出ています。記録が「スキップ」（灰色）なら、スイッチの変数 `COMMENTS_ENABLED` が `true` になっていません。分類や返信案が止まったときの理由は replies.md のいちばん上に出ます
 - **アカウントの名前を変えたい** — `configs/` のファイル名・`data/` のフォルダ名・`.github/workflows/*.yml` の `config: [my_account]`（`reply.yml` は入力欄の既定値 `default: "my_account"`）をそろえる
 
 ## 作った人

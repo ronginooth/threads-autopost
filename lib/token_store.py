@@ -6,6 +6,8 @@
 
 トークンの値は画面・ログに出さない。見せてよいのは先頭4文字と長さだけ。
 """
+from __future__ import annotations  # 手元の Python が 3.9 でも読めるように（X | None の書き方）
+
 import os
 import re
 import subprocess

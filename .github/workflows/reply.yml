@@ -66,7 +66,7 @@ jobs:
 
       - name: 部品を入れる
         if: steps.guard.outputs.go == 'true'
-        run: pip install -r requirements.txt
+        run: pip install -r requirements-comments.txt
 
       # 入力はコマンドに埋め込まず、環境変数で渡す（本文に " や $ があっても壊れない）。
       # --text= の形にするのは、本文が - で始まっても引数の名前と取り違えないため
